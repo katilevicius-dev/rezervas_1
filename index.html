@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rezervacijos</title>
+
+<style>
+body {font-family: Arial; padding:10px; background:#f5f5f5;}
+h2 {margin-top:10px;}
+
+input, select, button {
+    padding:8px;
+    font-size:14px;
+}
+
+.controls {
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    margin-bottom:10px;
+}
+
+#loginBox {
+    text-align:center;
+    margin-top:50px;
+}
+
+table {
+    width:100%;
+    background:#fff;
+    border-collapse:collapse;
+    margin-bottom:15px;
+}
+th, td {
+    padding:8px;
+    border-bottom:1px solid #ddd;
+}
+
+.month {margin-bottom:25px;}
+.calendar {
+    display:grid;
+    grid-template-columns:repeat(7,1fr);
+    gap:5px;
+}
+.day {
+    background:#fff;
+    border-radius:6px;
+    padding:5px;
+    min-height:60px;
+    font-size:12px;
+}
+.busy {background:#ffb3b3;}
+
+.day small {
+    display:block;
+    font-size:11px;
+}
+
+/* mobile */
+@media(max-width:600px){
+    .calendar {grid-template-columns:repeat(2,1fr);}
+}
+</style>
+</head>
+
+<body>
+
+<!-- LOGIN -->
+<div id="loginBox">
+    <h2>Prisijungimas</h2>
+    <input type="password" id="pass" placeholder="Slaptažodis">
+    <br><br>
+    <button onclick="login()">Prisijungti</button>
+</div>
+
+<!-- APP -->
+<div id="app" style="display:none;">
+
+<h2>Rezervacijų valdymas</h2>
+
+<div class="controls">
+    <select id="auto">
+        <option>BMW 520</option>
+        <option>Ford Focus</option>
+    </select>
+
+    <input type="date" id="from">
+    <input type="date" id="to">
+    <input type="text" id="client" placeholder="Klientas">
+    <input type="number" id="price" placeholder="€/diena">
+
+    <button onclick="add()">Pridėti</button>
+</div>
+
+<table>
+<thead>
+<tr>
+<th>Auto</th>
+<th>Nuo</th>
+<th>Iki</th>
+<th>Klientas</th>
+<th>Dienos</th>
+<th>Suma €</th>
+<th></th>
+</tr>
+</thead>
+<tbody id="list"></tbody>
+</table>
+
+<h3>Klientų suma</h3>
+<div id="clients"></div>
+
+<div id="calendar"></div>
+
+</div>
+
+<script>
+const PASSWORD = "1234"; // pakeisk
+
+function login(){
+    if(pass.value === PASSWORD){
+        localStorage.setItem("login","yes");
+        loginBox.style.display="none";
+        app.style.display="block";
+    } else {
+        alert("Blogas slaptažodis");
+    }
+}
+
+if(localStorage.getItem("login")==="yes"){
+    loginBox.style.display="none";
+    app.style.display="block";
+}
+
+/* DATA */
+let data = JSON.parse(localStorage.getItem("rez") || "[]");
+
+function save(){
+    localStorage.setItem("rez", JSON.stringify(data));
+    render();
+}
+
+function days(a,b){
+    return Math.ceil((new Date(b)-new Date(a))/(1000*60*60*24))+1;
+}
+
+function add(){
+    if(!from.value || !to.value || !client.value) return alert("Užpildyk viską");
+
+    data.push({
+        auto:auto.value,
+        from:from.value,
+        to:to.value,
+        client:client.value,
+        price:Number(price.value || 0)
+    });
+
+    save();
+}
+
+function del(i){
+    data.splice(i,1);
+    save();
+}
+
+function render(){
+    let html="";
+    let sums={};
+
+    data.forEach((r,i)=>{
+        let d = days(r.from,r.to);
+        let s = d * r.price;
+
+        sums[r.client] = (sums[r.client]||0) + s;
+
+        html += `
+        <tr>
+            <td>${r.auto}</td>
+            <td>${r.from}</td>
+            <td>${r.to}</td>
+            <td>${r.client}</td>
+            <td>${d}</td>
+            <td>${s} €</td>
+            <td><button onclick="del(${i})">X</button></td>
+        </tr>`;
+    });
+
+    list.innerHTML = html;
+
+    let sumHTML="";
+    for(let c in sums){
+        sumHTML += `<div>${c}: ${sums[c]} €</div>`;
+    }
+    clients.innerHTML = sumHTML;
+
+    calendarRender();
+}
+
+/* 🔥 NAUJAS KALENDORIUS */
+function calendarRender(){
+    let out = "";
+
+    let today = new Date();
+    let currentMonth = today.getMonth();
+    let currentYear = today.getFullYear();
+
+    for(let m = currentMonth; m < 12; m++){
+
+        let d = new Date(currentYear, m, 1);
+        let name = d.toLocaleString('lt',{month:'long'});
+
+        out += `<div class="month"><h3>${name} ${currentYear}</h3><div class="calendar">`;
+
+        while(d.getMonth() === m){
+
+            let str = d.toISOString().split('T')[0];
+
+            // ❗ nerodo praeitų dienų
+            if(new Date(str) < new Date().setHours(0,0,0,0)){
+                d.setDate(d.getDate()+1);
+                continue;
+            }
+
+            let matches = data.filter(r => str >= r.from && str <= r.to);
+
+            let cls = matches.length ? "day busy" : "day";
+
+            out += `<div class="${cls}">
+                ${str}
+                ${matches.map(x=>`<small>${x.auto}</small>`).join("")}
+            </div>`;
+
+            d.setDate(d.getDate()+1);
+        }
+
+        out += "</div></div>";
+    }
+
+    calendar.innerHTML = out;
+}
+
+render();
+</script>
+
+</body>
+</html>
